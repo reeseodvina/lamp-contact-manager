@@ -1,1 +1,2 @@
 # lamp-contact-manager
+test

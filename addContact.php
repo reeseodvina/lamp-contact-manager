@@ -1,3 +1,4 @@
+
 <?php
 	$inData = getRequestInfo();
 	
@@ -17,9 +18,13 @@
 		$stmt = $conn->prepare("INSERT into Contacts (FirstName, LastName, Email, Phone, UserID) VALUES (?, ?, ?, ?, ?)");
 		$stmt->bind_param("ssssi", $firstName, $lastName, $email, $phone, $userId);
 		$stmt->execute();
+
+		$contactId = $stmt->insert_id;
+
 		$stmt->close();
 		$conn->close();
-		returnWithError("");
+
+		returnWithSuccess($contactId);
 	}
 
 	function getRequestInfo()
@@ -35,7 +40,13 @@
 	
 	function returnWithError($err)
 	{
-		$retValue = '{"error":"' . $err . '"}';
+		$retValue = '{"success":false,"error":"' . $err . '"}';
+		sendResultInfoAsJson($retValue);
+	}
+
+	function returnWithSuccess($contactId)
+	{
+		$retValue = '{"success":true,"error":"","contactId":' . $contactId . '}';
 		sendResultInfoAsJson($retValue);
 	}
 ?>

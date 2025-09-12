@@ -34,7 +34,7 @@
 			}
 			else
 			{
-				//Possibly re-route to register (Justin 9/9/25)
+				//TO-DO: Possibly re-route to register (Justin 9/9/25)
 				returnWithError("WOMP WOMP: wrong username or password");
 			}
 
@@ -78,4 +78,5 @@
 		sendResultInfoAsJson( $retValue );
 	}
 	
+
 ?>

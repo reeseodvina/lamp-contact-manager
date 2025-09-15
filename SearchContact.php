@@ -35,7 +35,7 @@
 			
 			if( empty($searchTerm) )
 			{
-				returnWithError("Search term cannot be empty");
+				returnWithError("Search term cannot be empty", $userId);
 			}
 			else
 			{
@@ -58,6 +58,7 @@
 					{
 						// Combine FirstName and LastName into a single Name field for response
 						$row['Name'] = $row['FirstName'] . ' ' . $row['LastName'];
+						$row['userId'] = $userId; // Add userId to each contact
 						unset($row['FirstName']); // Remove individual fields
 						unset($row['LastName']);
 						$contacts[] = $row;
@@ -72,11 +73,11 @@
 					
 					if( count($contacts) > 0 )
 					{
-						returnWithInfo($contacts);
+						returnWithInfo($contacts, $userId);
 					}
 					else
 					{
-						returnWithError("This dude not here gang");
+						returnWithError("This dude not here gang", $userId);
 					}
 				}
 			}
@@ -125,7 +126,8 @@
 				$contact = array(
 					'Name' => $fullName,
 					'Phone' => $row['Phone'],
-					'Email' => $row['Email']
+					'Email' => $row['Email'],
+					'userId' => $userId // Add userId to each contact
 				);
 				$contacts[] = $contact;
 			}
@@ -198,23 +200,31 @@
 	}
 	
 	// Function to format and send error response for search
-	function returnWithError( $err )
+	function returnWithError( $err, $userId = null )
 	{
-		$retValue = '{"results":[],"error":"' . $err . '"}';
+		$retValue = '{"results":[],"error":"' . $err . '"';
+		if( $userId !== null ) {
+			$retValue .= ',"userId":' . $userId;
+		}
+		$retValue .= '}';
 		sendResultInfoAsJson( $retValue );
 	}
 	
 	// Function to format and send successful response with contact results
-	function returnWithInfo( $contacts )
+	function returnWithInfo( $contacts, $userId = null )
 	{
 		$resultsJson = json_encode($contacts);
 		if( $resultsJson === false )
 		{
-			returnWithError("Error encoding results to JSON");
+			returnWithError("Error encoding results to JSON", $userId);
 			return;
 		}
 		
-		$retValue = '{"results":' . $resultsJson . ',"error":""}';
+		$retValue = '{"results":' . $resultsJson . ',"error":""';
+		if( $userId !== null ) {
+			$retValue .= ',"userId":' . $userId;
+		}
+		$retValue .= '}';
 		sendResultInfoAsJson( $retValue );
 	}
 	

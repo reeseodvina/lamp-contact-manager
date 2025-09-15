@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - LAMP Stack Project</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>LAMP Stack Project</h1>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Contacts</h2>
+
+      <!-- Search form -->
+      <form id="search-form" class="login-form">
+        <input type="text" id="search-input" placeholder="Search by name..." />
+        <button type="submit" class="login-btn">Search</button>
+      </form>
+
+      <!-- Results -->
+      <div id="contacts-list" class="contacts-list">
+        <!-- Contacts will load here via JS -->
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:2rem;">
+      <h2>Add Contact</h2>
+      <form id="add-form" class="login-form">
+        <input type="text" name="firstName" placeholder="First Name" required />
+        <input type="text" name="lastName" placeholder="Last Name" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="text" name="phone" placeholder="Phone" required />
+        <button type="submit" class="login-btn">Add Contact</button>
+      </form>
+    </div>
+  </main>
+
+  <footer>
+    <p>© 2025 LAMP Stack Project</p>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>

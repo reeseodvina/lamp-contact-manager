@@ -8,7 +8,7 @@
 	$phone = $inData["phone"];
 	$userId = $inData["userId"];
 
-	$conn = new mysqli("localhost", "TheBeast", "WeLoveCOP4331", "COP4331");
+	$conn = new mysqli("root", "165.22.39.144", "Sup3rSh1nyMudk1p", "LampStackProject");
 	if ($conn->connect_error) 
 	{
 		returnWithError($conn->connect_error);

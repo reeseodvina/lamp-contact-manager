@@ -7,17 +7,22 @@
 	$firstName = "";
 	$lastName = "";
 
-	//I have no idea what our SQL sign in is so yeah... - Justin 9/8/25
-	$conn = new mysqli("localhost", "Poos22", "WeLovePoos22", "Poos22"); 	
+	// Debug: Log what we received (remove this in production)
+	error_log("Received data: " . json_encode($inData));
+	error_log("Login value: '" . ($inData["login"] ?? 'NULL') . "'");
+	error_log("Password value: '" . ($inData["password"] ?? 'NULL') . "'");
 
+	//I have no idea what our SQL sign in is so yeah... - Justin 9/8/25
+	$conn = new mysqli("localhost", "lampapi", "Sup3rSh1nyMudk1p", "LampStackProject");
 	if( $conn->connect_error )
 	{
 		returnWithError( $conn->connect_error );
 	}
 	else
 	{
-		// Check if any empty inputs
-		if( empty($inData["login"]) || empty($inData["password"]) )
+		// Check missing/empty inputs FIRST - also check for null
+		if( !isset($inData["login"]) || !isset($inData["password"]) || 
+		    empty(trim($inData["login"])) || empty(trim($inData["password"])) )
 		{
 			returnWithError("Umm you forgot to put something...");
 		}
@@ -34,7 +39,7 @@
 			}
 			else
 			{
-				//TO-DO: Possibly re-route to register (Justin 9/9/25)
+				//Possibly re-route to register (Justin 9/9/25)
 				returnWithError("WOMP WOMP: wrong username or password");
 			}
 
@@ -48,7 +53,17 @@
 	function getRequestInfo()
 	{
 		// Read raw input from php://input stream and decode JSON to associative array
-		return json_decode(file_get_contents('php://input'), true);
+		$input = file_get_contents('php://input');
+		error_log("Raw input: " . $input); // Debug line - remove in production
+		$decoded = json_decode($input, true);
+		
+		// Check for JSON decode errors
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			error_log("JSON decode error: " . json_last_error_msg());
+			return [];
+		}
+		
+		return $decoded;
 	}
 
 	// Function to send JSON response with proper content type header
@@ -78,5 +93,4 @@
 		sendResultInfoAsJson( $retValue );
 	}
 	
-
 ?>

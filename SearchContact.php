@@ -3,54 +3,82 @@
 	//Third
 	$inData = getRequestInfo();
 	
+	// Debug logging (remove in production)
+	error_log("Received data: " . json_encode($inData));
+	
 	$searchResults = "";
 	$searchCount = 0;
 	
 	//I have no idea what our SQL sign in is so yeah... - Justin 9/8/25
-	$conn = new mysqli("localhost", "Poos22", "WeLovePoos22", "Poos22");
+	$conn = new mysqli("localhost", "lampapi", "Sup3rSh1nyMudk1p", "LampStackProject");
 	if( $conn->connect_error )
 	{
 		returnWithError( $conn->connect_error );
 	}
 	else
 	{
-		//clean up search input
-		$searchTerm = trim($inData["search"]);
-		$userId = $inData["userId"];
-		
-		if( empty($searchTerm) )
+		// ADDED: Check if required fields exist and are not null
+		if( !isset($inData["search"]) || !isset($inData["userId"]) )
 		{
-			returnWithError("Search term cannot be empty");
+			returnWithError("Missing required fields: search and userId");
+		}
+		// ADDED: Validate userId is numeric
+		else if( !is_numeric($inData["userId"]) )
+		{
+			returnWithError("Invalid userId - must be a number");
 		}
 		else
 		{
-			// First try exact matches and partial matches
-			$stmt = $conn->prepare("SELECT Name, Phone, Email FROM Contacts WHERE UserID=? AND (Name LIKE ? OR Phone LIKE ? OR Email LIKE ?)");
-			$searchPattern = "%" . $searchTerm . "%";
-			$stmt->bind_param("isss", $userId, $searchPattern, $searchPattern, $searchPattern);
-			$stmt->execute();
-			$result = $stmt->get_result();
+			//clean up search input
+			$searchTerm = trim($inData["search"]);
+			$userId = (int)$inData["userId"];
 			
-			$contacts = array();
-			while( $row = $result->fetch_assoc() )
+			if( empty($searchTerm) )
 			{
-				$contacts[] = $row;
-			}
-			$stmt->close();
-			
-			// If no results found, try fuzzy matching for typos
-			if( count($contacts) == 0 )
-			{
-				$contacts = performFuzzySearch($conn, $userId, $searchTerm);
-			}
-			
-			if( count($contacts) > 0 )
-			{
-				returnWithInfo($contacts);
+				returnWithError("Search term cannot be empty");
 			}
 			else
 			{
-				returnWithError("No Records Found");
+				// First try exact matches and partial matches
+				// Note: Your DB has FirstName + LastName, not a single Name column
+				$stmt = $conn->prepare("SELECT FirstName, LastName, Phone, Email FROM Contacts WHERE UserID=? AND (FirstName LIKE ? OR LastName LIKE ? OR Phone LIKE ? OR Email LIKE ?)");
+				if( !$stmt )
+				{
+					returnWithError("Database prepare error: " . $conn->error);
+				}
+				else
+				{
+					$searchPattern = "%" . $searchTerm . "%";
+					$stmt->bind_param("issss", $userId, $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+					$stmt->execute();
+					$result = $stmt->get_result();
+					
+					$contacts = array();
+					while( $row = $result->fetch_assoc() )
+					{
+						// Combine FirstName and LastName into a single Name field for response
+						$row['Name'] = $row['FirstName'] . ' ' . $row['LastName'];
+						unset($row['FirstName']); // Remove individual fields
+						unset($row['LastName']);
+						$contacts[] = $row;
+					}
+					$stmt->close();
+					
+					// If no results found, try fuzzy matching for typos
+					if( count($contacts) == 0 )
+					{
+						$contacts = performFuzzySearch($conn, $userId, $searchTerm);
+					}
+					
+					if( count($contacts) > 0 )
+					{
+						returnWithInfo($contacts);
+					}
+					else
+					{
+						returnWithError("This dude not here gang");
+					}
+				}
 			}
 		}
 		
@@ -63,19 +91,29 @@
 		$contacts = array();
 		
 		// Get all contacts for the user
-		$stmt = $conn->prepare("SELECT Name, Phone, Email FROM Contacts WHERE UserID=?");
+		$stmt = $conn->prepare("SELECT FirstName, LastName, Phone, Email FROM Contacts WHERE UserID=?");
+		if( !$stmt )
+		{
+			return $contacts; // Return empty array on error
+		}
+		
 		$stmt->bind_param("i", $userId);
 		$stmt->execute();
 		$result = $stmt->get_result();
 		
 		while( $row = $result->fetch_assoc() )
 		{
-			// Check similarity with name, phone, and email
-			$nameDistance = levenshteinDistance(strtolower($searchTerm), strtolower($row['Name']));
+			// Combine first and last name for searching
+			$fullName = $row['FirstName'] . ' ' . $row['LastName'];
+			
+			// Check similarity with full name, first name, last name, phone, and email
+			$fullNameDistance = levenshteinDistance(strtolower($searchTerm), strtolower($fullName));
+			$firstNameDistance = levenshteinDistance(strtolower($searchTerm), strtolower($row['FirstName']));
+			$lastNameDistance = levenshteinDistance(strtolower($searchTerm), strtolower($row['LastName']));
 			$phoneDistance = levenshteinDistance(strtolower($searchTerm), strtolower($row['Phone']));
 			$emailDistance = levenshteinDistance(strtolower($searchTerm), strtolower($row['Email']));
 			
-			$minDistance = min($nameDistance, $phoneDistance, $emailDistance);
+			$minDistance = min($fullNameDistance, $firstNameDistance, $lastNameDistance, $phoneDistance, $emailDistance);
 			
 			// Allow up to 2 character differences for typos
 			//TO-DO: send confirmation to User - Justin 9/9/25
@@ -83,7 +121,13 @@
 			
 			if( $minDistance <= $maxAllowedDistance )
 			{
-				$contacts[] = $row;
+				// Format the response to match expected structure
+				$contact = array(
+					'Name' => $fullName,
+					'Phone' => $row['Phone'],
+					'Email' => $row['Email']
+				);
+				$contacts[] = $contact;
 			}
 		}
 		
@@ -130,71 +174,47 @@
 		return $matrix[$len1][$len2];
 	}
 	
-	// === JSON HANDLING FUNCTIONS === ( honestly shoulda put this on Register since I did that first)
-	// These functions handle converting between PHP data and JSON (JavaScript Object Notation)
-	// JSON is like a text-based way to represent objects/structs, similar to serialization in Java
-	
 	// Function to decode JSON input from request body
 	function getRequestInfo()
 	{
-		// === READING REQUEST DATA ===
-		// Read raw input from php://input stream and decode JSON to associative array
-		// This is like:
-		//   - In Java: ObjectMapper.readValue(inputStream, Map.class) 
-		//   - In C: reading from stdin and parsing manually
-		// 
-		// Example: '{"search":"john","userId":1}' becomes PHP array: ["search" => "john", "userId" => 1]
-		return json_decode(file_get_contents('php://input'), true);
+		$input = file_get_contents('php://input');
+		error_log("Raw input: " . $input); // Debug line
+		$decoded = json_decode($input, true);
+		
+		// Check for JSON decode errors
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			error_log("JSON decode error: " . json_last_error_msg());
+			return array(); // Return empty array instead of null
+		}
+		
+		return $decoded ? $decoded : array();
 	}
 
 	// Function to send JSON response with proper content type header
 	function sendResultInfoAsJson( $obj )
 	{
-		// === SET RESPONSE FORMAT ===
-		// Set response content type to JSON (tells browser/client this is JSON data)
-		// Like setting Content-Type header in HTTP response
-		// Similar to response.setContentType("application/json") in Java servlets
 		header('Content-type: application/json');
-		
-		// === SEND THE DATA ===
-		// Output the JSON string to the client
-		// Like System.out.print() in Java or printf() in C, but goes to web client
 		echo $obj;
 	}
 	
-	// === ERROR RESPONSE FUNCTION ===
 	// Function to format and send error response for search
 	function returnWithError( $err )
 	{
-		// === CREATE ERROR JSON ===
-		// Create JSON error response with empty results array and error message
-		// This creates a standardized error format that client can expect
-		// Like: {"results": [], "error": "No Records Found"}
 		$retValue = '{"results":[],"error":"' . $err . '"}';
-		
-		// === SEND ERROR RESPONSE ===
-		// Send the formatted JSON response to client
 		sendResultInfoAsJson( $retValue );
 	}
 	
-	// === SUCCESS RESPONSE FUNCTION ===  
 	// Function to format and send successful response with contact results
 	function returnWithInfo( $contacts )
 	{
-		// === CONVERT ARRAY TO JSON ===
-		// Convert contacts array to JSON string
-		// This is like ObjectMapper.writeValueAsString(contactsList) in Java
-		// Converts PHP array of contacts into JSON format for sending to client
-		// Example: [{"Name":"John","Phone":"123","Email":"j@j.com"}] 
 		$resultsJson = json_encode($contacts);
+		if( $resultsJson === false )
+		{
+			returnWithError("Error encoding results to JSON");
+			return;
+		}
 		
-		// === CREATE SUCCESS JSON ===
-		// Create JSON success response with results array and empty error field
-		// Format: {"results": [contact1, contact2, ...], "error": ""}
 		$retValue = '{"results":' . $resultsJson . ',"error":""}';
-		
-		// === SEND SUCCESS RESPONSE ===
-		// Send the formatted JSON response to client
 		sendResultInfoAsJson( $retValue );
 	}
 	
